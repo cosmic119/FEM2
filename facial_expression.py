@@ -10,17 +10,20 @@ class facial_expression():
         self.X = tf.placeholder(tf.float32, [None, 2304])
         self.Y = tf.placeholder(tf.int32, [None])  # 0=Angry, 1=Disgust, 2=Fear, 3=Happy, 4=Sad, 5=Surprise, 6=Neutral).
         self.keep_prob = tf.placeholder(tf.float32)
-        self.checkpoint_save_dir = os.path.join("/home/hci/PycharmProjects/hklovelovehs/fakeiamges&dropout_checkpoint")
+        self.checkpoint_save_dir = os.path.join("/home/hci/PycharmProjects/hklovelovehs/checkpointhehehe")
         self.data_file_path = os.path.join("data_set", "fer2013.csv")
 
-        self.X_img = tf.reshape(self.X, [-1, 48, 48, 1])
+        self.loss, self.decoded = self.autoencoder(self.X)
+        # self.train_step = tf.train.AdagradOptimizer(0.1).minimize(self.loss)
+
+        self.X_ae_img = tf.reshape(self.decoded, [-1, 48, 48, 1])
         self.Y_one_hot = tf.one_hot(self.Y, 7)
 
         # 1st Layer
         self.weight_1 = tf.Variable(tf.random_normal([3, 3, 1, 32], stddev=0.01))
         self.bias_1 = tf.Variable(tf.random_normal([32], stddev=0.01))
 
-        self.L1 = tf.nn.conv2d(self.X_img, self.weight_1, strides=[1, 1, 1, 1], padding='SAME')
+        self.L1 = tf.nn.conv2d(self.X_ae_img, self.weight_1, strides=[1, 1, 1, 1], padding='SAME')
         self.L1 = tf.nn.bias_add(self.L1, self.bias_1)
 
         self.L1 = tf.nn.relu(self.L1)
@@ -73,6 +76,59 @@ class facial_expression():
         self.mean_cost = tf.reduce_mean(self.cost, 0)
         self.mean_accuracy = tf.reduce_mean(tf.cast(self.prediction_result, tf.float32))
 
+    def autoencoder(self, images):
+        # Encoding
+        # Layer1
+        ae_img = tf.reshape(images, [-1, 48, 48, 1])
+
+        conv1 = self.ae_conv2d(ae_img, (48, 48), 1, 16, (3, 3))
+        pool1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                               padding='SAME')  # now size becomes ? 24 24 32\
+        # Layer2
+        conv2 = self.ae_conv2d(pool1, (24, 24), 16, 8, (3, 3))
+        pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                               padding='SAME')  # now size becomes ? 24 24 32
+        # Layer3
+        conv3 = self.ae_conv2d(pool2, (12, 12), 8, 8, (3, 3))
+        pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                               padding='SAME')  # now size becomes ? 24 24 32
+
+        # Decoding
+        dec_conv1 = self.ae_transpose(pool3, (12, 12), 8, 8, (3, 3))
+        dec_conv2 = self.ae_transpose(dec_conv1, (24, 24), 8, 8, (3, 3))
+        dec_conv3 = self.ae_transpose(dec_conv2, (48, 48), 8, 16, (3, 3))
+        decoded = self.ae_conv2d(dec_conv3, (48, 48), 16, 1, (3, 3))
+        decoded = tf.reshape(decoded, [-1, 2304])
+        cross_entropy = -1. * images * tf.log(decoded) - (1. - images) * tf.log(1. - decoded)
+        loss = tf.reduce_mean(cross_entropy)
+
+        return loss, decoded
+
+    def ae_conv2d(self, input, input_siz, in_ch, out_ch, filter_siz, activation='sigmoid'):
+        rows = input_siz[0]
+        cols = input_siz[1]
+        wshape = [filter_siz[0], filter_siz[1], in_ch, out_ch]
+        w_cvt = tf.Variable(tf.truncated_normal(wshape, stddev=0.1), trainable=True)
+        b_cvt = tf.Variable(tf.constant(0.1, shape=[out_ch]), trainable=True)
+
+        shape4D = [-1, rows, cols, in_ch]
+        x_image = tf.reshape(input, shape4D)
+        linout = tf.nn.conv2d(x_image, w_cvt, strides=[1, 1, 1, 1], padding='SAME') + b_cvt
+
+        return tf.sigmoid(linout)
+
+    def ae_transpose(self, input, output_siz, in_ch, out_ch, filter_siz, activation='sigmoid'):
+        rows = output_siz[0]
+        cols = output_siz[1]
+        wshape = [filter_siz[0], filter_siz[1], out_ch, in_ch]
+        w_cvt = tf.Variable(tf.truncated_normal(wshape, stddev=0.1), trainable=True)
+        b_cvt = tf.Variable(tf.constant(0.1, shape=[out_ch]), trainable=True)
+        batsiz = tf.shape(input)[0]
+        shape4D = [batsiz, rows, cols, out_ch]
+        linout = tf.nn.conv2d_transpose(input, w_cvt, output_shape=shape4D, strides=[1, 2, 2, 1],
+                                        padding='SAME') + b_cvt
+        return tf.sigmoid(linout)
+
     def get_dataset(self, file_path, batch_size, num_fake_img=0, shuffle=True):
         with open(file_path) as csvfile:
             print("file opening")
@@ -82,7 +138,7 @@ class facial_expression():
             if shuffle:
                 np.random.shuffle(csvfile)
 
-
+            # except int()
             for i in range(int(round(len(csvfile) / batch_size, 0))):
                 labels = []
                 images = []
@@ -98,8 +154,6 @@ class facial_expression():
                     for j in range(num_fake_img):
                         choose_fake_img_type = random.randrange(0, 2)
                         x_rows = []
-
-                        #to make fake_iamge, change image brightness
                         if choose_fake_img_type == 0:
                             noise = random.randrange(-8, 8) / 10
 
@@ -115,8 +169,6 @@ class facial_expression():
                             train_or_test.append(txt_batch[2])
 
                         x_rows = []
-
-                        #to make fake_iamge, add random noise to image
                         noise_alpha = 0.1
                         if choose_fake_img_type == 1:
                             for image_data in txt_batch[1].split():
@@ -130,7 +182,6 @@ class facial_expression():
                             labels.append(txt_batch[0])
                             train_or_test.append(txt_batch[2])
 
-                        #fake image shuffle because it arranged sequencially
                         for j in range(len(images)):
                             fake_img_shuffle = random.randrange(0, len(images))
                             images[j], images[fake_img_shuffle] = images[fake_img_shuffle], images[j]
