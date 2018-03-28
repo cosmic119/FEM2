@@ -104,6 +104,7 @@ class facial_expression():
 
         return loss, decoded
 
+    #for autoencoder conv2D
     def ae_conv2d(self, input, input_siz, in_ch, out_ch, filter_siz, activation='sigmoid'):
         rows = input_siz[0]
         cols = input_siz[1]
@@ -117,6 +118,7 @@ class facial_expression():
 
         return tf.sigmoid(linout)
 
+    # for autoencoder conv2Dtranspose
     def ae_transpose(self, input, output_siz, in_ch, out_ch, filter_siz, activation='sigmoid'):
         rows = output_siz[0]
         cols = output_siz[1]
