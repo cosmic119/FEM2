@@ -1,1 +1,3 @@
 data_set/fer2013.csv
+with_autoencoder_dropout_fakeimg/
+with_autoencoder_dropout_fakeimg_manyepoch/

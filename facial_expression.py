@@ -10,7 +10,7 @@ class facial_expression():
         self.X = tf.placeholder(tf.float32, [None, 2304])
         self.Y = tf.placeholder(tf.int32, [None])  # 0=Angry, 1=Disgust, 2=Fear, 3=Happy, 4=Sad, 5=Surprise, 6=Neutral).
         self.keep_prob = tf.placeholder(tf.float32)
-        self.checkpoint_save_dir = os.path.join("/home/hci/PycharmProjects/hklovelovehs/checkpointhehehe")
+        self.checkpoint_save_dir = os.path.join("/home/hci/hyeon/git/FEM2/with_autoencoder_dropout_fakeimg_manyepoch")
         self.data_file_path = os.path.join("data_set", "fer2013.csv")
 
         self.loss, self.decoded = self.autoencoder(self.X)
@@ -241,4 +241,4 @@ if __name__ == '__main__':
     # print(labels)
     # print(train)
     a = facial_expression()
-    a.start_train(a.checkpoint_save_dir, 20, 50, 3, a.data_file_path, 10)
+    a.start_train(a.checkpoint_save_dir, 100, 50, 3, a.data_file_path, 10)
