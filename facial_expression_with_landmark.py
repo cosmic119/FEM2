@@ -20,7 +20,7 @@ class facial_expression():
         self.landmark_X = tf.placeholder(tf.float32, [None, 144])
 
         self.keep_prob = tf.placeholder(tf.float32)
-        self.checkpoint_save_dir = os.path.join("/home/hci/hyeon/git/FEM2/hia123")
+        self.checkpoint_save_dir = os.path.join("/home/hci/PycharmProjects/hklovelovehs/hialove")
         self.data_file_path = os.path.join("data_set", "fer2013.csv")
 
         # self.loss, self.decoded = self.autoencoder(self.X)
@@ -70,6 +70,9 @@ class facial_expression():
                                       padding='SAME')  # now size becomes ? 12 12 64
         # self.L2 = tf.nn.dropout(self.L2, keep_prob=self.keep_prob)
 
+
+
+
         # 3rd Layer
         self.weight_3 = tf.Variable(tf.random_normal([3, 3, 64, 128], stddev=0.01))
         self.bias_3 = tf.Variable(tf.random_normal([128], stddev=0.01))
@@ -83,18 +86,18 @@ class facial_expression():
         # self.L3 = tf.nn.dropout(self.L3, keep_prob=self.keep_prob)
         self.L3_flatten = tf.reshape(self.L3, [-1, 6 * 6 * 128])
         self.landmark_flatten = tf.reshape(self.land_L2, [-1, 3 * 3 * 64])
+        self.concat_flatten = tf.concat([self.L3_flatten, self.landmark_flatten], 1)
 
         # FC Layer
         # self.weight_4 = tf.get_variable(name="w4", shape=[6 * 6 * 128, 7],
         #                                 initializer=tf.contrib.layers.xavier_initializer())
 
-        self.weight_4 = tf.get_variable(name="w4", shape=[(6 * 6 * 128), 7],
+        self.weight_4 = tf.get_variable(name="w4", shape=[(6 * 6 * 128) + (3 * 3 * 64), 7],
                                         initializer=tf.contrib.layers.xavier_initializer())
-        # self.landmark_weight_4 = tf.get_variable(name="w4", shape=[(3 * 3 * 128), 7],
-        #                                 initializer=tf.contrib.layers.xavier_initializer())
-        self.landmark_weight = tf.get_variable(name="w5", shape=[3 * 3 * 64, 7], initializer=tf.contrib.layers.xavier_initializer())
+        # self.landmark_weight = tf.get_variable(name="w4", shape=[3 * 3 * 64, 7], initializer=tf.contrib.layers.xavier_initializer())
         self.bias_4 = tf.Variable(tf.random_normal([7]))
-        self.logits = tf.add(tf.matmul(self.L3_flatten,self.weight_4),tf.matmul(self.landmark_flatten,self.landmark_weight)) + self.bias_4  # size now become ?,7
+
+        self.logits = tf.matmul(self.concat_flatten, self.weight_4) + self.bias_4  # size now become ?,7
         # self.landmark_logidits = tf.matmul(self.landmark_flatten, self.landmark_weight) + self.bias_4
         self.softmax_logits = tf.nn.softmax(self.logits)
 
@@ -108,6 +111,60 @@ class facial_expression():
         self.mean_cost = tf.reduce_mean(self.cost, 0)
         self.mean_accuracy = tf.reduce_mean(tf.cast(self.prediction_result, tf.float32))
 
+    # def autoencoder(self, images):
+    #     # Encoding
+    #     # Layer1
+    #     ae_img = tf.reshape(images, [-1, 48, 48, 1])
+    #
+    #     conv1 = self.ae_conv2d(ae_img, (48, 48), 1, 16, (3, 3))
+    #     pool1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+    #                            padding='SAME')  # now size becomes ? 24 24 32\
+    #     # Layer2
+    #     conv2 = self.ae_conv2d(pool1, (24, 24), 16, 8, (3, 3))
+    #     pool2 = tf.nn.max_pool(conv2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+    #                            padding='SAME')  # now size becomes ? 24 24 32
+    #     # Layer3
+    #     conv3 = self.ae_conv2d(pool2, (12, 12), 8, 8, (3, 3))
+    #     pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+    #                            padding='SAME')  # now size becomes ? 24 24 32
+    #
+    #     # Decoding
+    #     dec_conv1 = self.ae_transpose(pool3, (12, 12), 8, 8, (3, 3))
+    #     dec_conv2 = self.ae_transpose(dec_conv1, (24, 24), 8, 8, (3, 3))
+    #     dec_conv3 = self.ae_transpose(dec_conv2, (48, 48), 8, 16, (3, 3))
+    #     decoded = self.ae_conv2d(dec_conv3, (48, 48), 16, 1, (3, 3))
+    #     decoded = tf.reshape(decoded, [-1, 2304])
+    #     cross_entropy = -1. * images * tf.log(decoded) - (1. - images) * tf.log(1. - decoded)
+    #     loss = tf.reduce_mean(cross_entropy)
+    #
+    #     return loss, decoded
+    #
+    # #for autoencoder conv2D
+    # def ae_conv2d(self, input, input_siz, in_ch, out_ch, filter_siz, activation='sigmoid'):
+    #     rows = input_siz[0]
+    #     cols = input_siz[1]
+    #     wshape = [filter_siz[0], filter_siz[1], in_ch, out_ch]
+    #     w_cvt = tf.Variable(tf.truncated_normal(wshape, stddev=0.1), trainable=True)
+    #     b_cvt = tf.Variable(tf.constant(0.1, shape=[out_ch]), trainable=True)
+    #
+    #     shape4D = [-1, rows, cols, in_ch]
+    #     x_image = tf.reshape(input, shape4D)
+    #     linout = tf.nn.conv2d(x_image, w_cvt, strides=[1, 1, 1, 1], padding='SAME') + b_cvt
+    #
+    #     return tf.sigmoid(linout)
+    #
+    # # for autoencoder conv2Dtranspose
+    # def ae_transpose(self, input, output_siz, in_ch, out_ch, filter_siz, activation='sigmoid'):
+    #     rows = output_siz[0]
+    #     cols = output_siz[1]
+    #     wshape = [filter_siz[0], filter_siz[1], out_ch, in_ch]
+    #     w_cvt = tf.Variable(tf.truncated_normal(wshape, stddev=0.1), trainable=True)
+    #     b_cvt = tf.Variable(tf.constant(0.1, shape=[out_ch]), trainable=True)
+    #     batsiz = tf.shape(input)[0]
+    #     shape4D = [batsiz, rows, cols, out_ch]
+    #     linout = tf.nn.conv2d_transpose(input, w_cvt, output_shape=shape4D, strides=[1, 2, 2, 1],
+    #                                     padding='SAME') + b_cvt
+    #     return tf.sigmoid(linout)
 
     def get_dataset(self, file_path, batch_size, num_fake_img=0, shuffle=True):
         with open(file_path) as csvfile:
@@ -190,6 +247,12 @@ class facial_expression():
             for x, y, w, z in zip(xcentral, ycentral, xlist, ylist):
                 landmarks_vectorised.append(x)
                 landmarks_vectorised.append(y)
+                # meannp = np.asarray((ymean,xmean))
+                # coornp = np.asarray((z,w))
+                # dist = np.linalg.norm(coornp-meannp)
+                # anglerelative = (math.atan((z-ymean)/(w-xmean))*180/math.pi)
+                # landmarks_vectorised.append(dist)
+                # landmarks_vectorised.append(anglerelative)
 
             for i in range(0, 8):
                 landmarks_vectorised.append(0)
@@ -228,6 +291,10 @@ class facial_expression():
                 print("%s epoch" % i)
                 for image_data, label_data, train_or_test in self.get_dataset(file_path, batch_size, num_fake_img):
                     for x in range(batch_size):
+                        # print(image_data[x])
+                        # test[x] = image_data[x]
+                        # y+=2304
+                        # print(test[x])
                         pixels_array = np.asarray(image_data[x])
                         image = pixels_array.reshape(48, 48)
                         if self.get_landmarks(image) is False:
@@ -243,7 +310,8 @@ class facial_expression():
                         # cost, accuracy = sess.run([self.mean_cost, self.mean_accuracy],
                         #                           feed_dict={self.X: image_data, self.Y: label_data, self.keep_prob: 1})
                         cost, accuracy = sess.run([self.mean_cost, self.mean_accuracy],
-                                                  feed_dict={self.X: image_data, self.Y: label_data})
+                                                  feed_dict={self.X: image_data, self.Y: label_data,
+                                                             self.landmark_X: self.landmark_data})
                         print("COST: ", cost)
                         print("Accuracy: ", accuracy)
                         saver.save(sess, os.path.join(checkpoint_save_dir, "facial expression"))
@@ -254,12 +322,16 @@ class facial_expression():
                         delete_list = []
                     else:
                         # sess.run(self.train, feed_dict={self.X: image_data, self.Y: label_data, self.keep_prob: 0.7})
-                        sess.run(self.train, feed_dict={self.X: image_data, self.Y: label_data})
+                        sess.run(self.train, feed_dict={self.X: image_data, self.Y: label_data,
+                                                        self.landmark_X: self.landmark_data})
                         self.landmark_data = []
                         delete_list = []
 
 
 if __name__ == '__main__':
     # images, labels, train = get_dataset("/home/hci/PycharmProjects/hklovelovehs/fer2013.csv", 50)
+    # print(images)
+    # print(labels)
+    # print(train)
     a = facial_expression()
     a.start_train(a.checkpoint_save_dir, 20, 50, 0, a.data_file_path, 10)
