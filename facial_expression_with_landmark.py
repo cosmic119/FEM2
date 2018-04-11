@@ -247,12 +247,6 @@ class facial_expression():
             for x, y, w, z in zip(xcentral, ycentral, xlist, ylist):
                 landmarks_vectorised.append(x)
                 landmarks_vectorised.append(y)
-                # meannp = np.asarray((ymean,xmean))
-                # coornp = np.asarray((z,w))
-                # dist = np.linalg.norm(coornp-meannp)
-                # anglerelative = (math.atan((z-ymean)/(w-xmean))*180/math.pi)
-                # landmarks_vectorised.append(dist)
-                # landmarks_vectorised.append(anglerelative)
 
             for i in range(0, 8):
                 landmarks_vectorised.append(0)
