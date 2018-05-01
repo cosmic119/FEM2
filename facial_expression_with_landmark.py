@@ -20,7 +20,7 @@ class facial_expression():
         self.landmark_X = tf.placeholder(tf.float32, [None, 144])
 
         self.keep_prob = tf.placeholder(tf.float32)
-        self.checkpoint_save_dir = os.path.join("/home/hci/PycharmProjects/hklovelovehs/train_with_trainingset_with_dropout_fakeimg_learning_rate2")
+        self.checkpoint_save_dir = os.path.join("/home/hci/PycharmProjects/hklovelovehs/landmark_dropout_fakeimg")
 
         self.data_file_path = os.path.join("data_set", "fer2013.csv")
 
@@ -32,8 +32,10 @@ class facial_expression():
         self.Y_one_hot = tf.one_hot(self.Y, 7)
 
         # 1st Layer
-        self.weight_1 = tf.Variable(tf.random_normal([3, 3, 1, 32], stddev=0.02))
+        self.weight_1 = tf.Variable(tf.random_normal([3, 3, 1, 32], stddev=0.01))
         self.bias_1 = tf.Variable(tf.random_normal([32], stddev=0.01))
+        self.land_weight_1 = tf.Variable(tf.random_normal([3, 3, 1, 32], stddev=0.01))
+        self.land_bias_1 = tf.Variable(tf.random_normal([32], stddev=0.01))
 
         self.L1 = tf.nn.conv2d(self.X_img, self.weight_1, strides=[1, 1, 1, 1], padding='SAME')
         self.L1 = tf.nn.bias_add(self.L1, self.bias_1)
@@ -42,18 +44,21 @@ class facial_expression():
         self.L1 = tf.nn.max_pool(self.L1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                  padding='SAME')  # now size becself.data = {}omes ? 24 24 32
         # landmark 1st Layer
-        self.land_L1 = tf.nn.conv2d(self.landmark_img, self.weight_1, strides=[1, 1, 1, 1], padding='SAME')
-        self.land_L1 = tf.nn.bias_add(self.land_L1, self.bias_1)
+        self.land_L1 = tf.nn.conv2d(self.landmark_img, self.land_weight_1, strides=[1, 1, 1, 1], padding='SAME')
+        self.land_L1 = tf.nn.bias_add(self.land_L1, self.land_bias_1)
 
         self.land_L1 = tf.nn.relu(self.land_L1)
         self.land_L1 = tf.nn.max_pool(self.land_L1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                       padding='SAME')
 
         self.L1 = tf.nn.dropout(self.L1, keep_prob=self.keep_prob)
+        self.land_L1 = tf.nn.dropout(self.land_L1, keep_prob=self.keep_prob)
 
         # 2nd Layer
-        self.weight_2 = tf.Variable(tf.random_normal([3, 3, 32, 64], stddev=0.02))
+        self.weight_2 = tf.Variable(tf.random_normal([3, 3, 32, 64], stddev=0.01))
         self.bias_2 = tf.Variable(tf.random_normal([64], stddev=0.01))
+        self.land_weight_2 = tf.Variable(tf.random_normal([3, 3, 32, 64], stddev=0.01))
+        self.land_bias_2 = tf.Variable(tf.random_normal([64], stddev=0.01))
 
         self.L2 = tf.nn.conv2d(self.L1, self.weight_2, strides=[1, 1, 1, 1], padding='SAME')
         self.L2 = tf.nn.bias_add(self.L2, self.bias_2)
@@ -63,16 +68,17 @@ class facial_expression():
                                  padding='SAME')  # now size becomes ? 12 12 64
 
         # landmark 2nd Layer
-        self.land_L2 = tf.nn.conv2d(self.land_L1, self.weight_2, strides=[1, 1, 1, 1], padding='SAME')
-        self.land_L2 = tf.nn.bias_add(self.land_L2, self.bias_2)
+        self.land_L2 = tf.nn.conv2d(self.land_L1, self.land_weight_2, strides=[1, 1, 1, 1], padding='SAME')
+        self.land_L2 = tf.nn.bias_add(self.land_L2, self.land_bias_2)
 
         self.land_L2 = tf.nn.relu(self.land_L2)
         self.land_L2 = tf.nn.max_pool(self.land_L2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                       padding='SAME')  # now size becomes ? 12 12 64
         self.L2 = tf.nn.dropout(self.L2, keep_prob=self.keep_prob)
+        self.land_L2 = tf.nn.dropout(self.land_L2, keep_prob=self.keep_prob)
 
         # 3rd Layer
-        self.weight_3 = tf.Variable(tf.random_normal([3, 3, 64, 128], stddev=0.02))
+        self.weight_3 = tf.Variable(tf.random_normal([3, 3, 64, 128], stddev=0.01))
         self.bias_3 = tf.Variable(tf.random_normal([128], stddev=0.01))
 
         self.L3 = tf.nn.conv2d(self.L2, self.weight_3, strides=[1, 1, 1, 1], padding='SAME')
@@ -82,6 +88,8 @@ class facial_expression():
                                  padding='SAME')  # now size becomes ? 6 6 128
 
         self.L3 = tf.nn.dropout(self.L3, keep_prob=self.keep_prob)
+
+        #Tensor flatten
         self.L3_flatten = tf.reshape(self.L3, [-1, 6 * 6 * 128])
         self.landmark_flatten = tf.reshape(self.land_L2, [-1, 3 * 3 * 64])
         self.concat_flatten = tf.concat([self.L3_flatten, self.landmark_flatten], 1)
@@ -160,7 +168,7 @@ class facial_expression():
     #     return tf.sigmoid(linout)
 
 
-    def get_train_dataset(self, file_path, batch_size, num_fake_img=0, shuffle=True, train_or_test=True):
+    def get_train_dataset(self, file_path, batch_size, train_or_test, num_fake_img=0, shuffle=True):
         with open(file_path) as csvfile:
             print("file opening")
             training_set = []
@@ -175,21 +183,22 @@ class facial_expression():
                 else:
                     test_set.append(x)
 
-            traing_set = np.array(training_set)
+            training_set = np.array(training_set)
             test_set = np.array(test_set)
 
 
             # csvfile = np.array(csvfile)
             if shuffle:
-                np.random.shuffle(traing_set)
+                np.random.shuffle(training_set)
                 np.random.shuffle(test_set)
 
+            purpose = (training_set if train_or_test else test_set)
+
             # except int()
-            for i in range(int(round(len(training_set if train_or_test else test_set) / batch_size, 0))):
+            for i in range(int(round(len(purpose) / batch_size, 0))):
                 labels = []
                 images = []
-
-                txt_list = traing_set[i * batch_size:i * batch_size + batch_size]
+                txt_list = purpose[i * batch_size:i * batch_size + batch_size]
                 for txt_batch in txt_list:
                     txt_batch = txt_batch.split(",")
                     images.append([np.uint8(image_data) for image_data in txt_batch[1].split()])
@@ -313,7 +322,7 @@ class facial_expression():
 
 
 
-    def start_train(self, checkpoint_save_dir, epoch, batch_size, num_fake_img, file_path, eval_freq, training = True):
+    def start_train(self, checkpoint_save_dir, epoch, batch_size, num_fake_img, file_path, eval_freq, training):
         if not os.path.exists(checkpoint_save_dir):
             print("check point dir not found, making one")
             os.mkdir(checkpoint_save_dir)
@@ -333,7 +342,7 @@ class facial_expression():
             y = []
             for i in range(epoch):
                 print("%s epoch" % i)
-                for image_data, label_data in self.get_train_dataset(file_path, batch_size, num_fake_img, training):
+                for image_data, label_data in self.get_train_dataset(file_path, batch_size, training, num_fake_img):
                     for x in range(image_data.__len__()):
                         # print(image_data[x])
                         # test[x] = image_data[x]
@@ -379,7 +388,7 @@ if __name__ == '__main__':
     # print(train)
     a = facial_expression()
     # a.start_test(a.checkpoint_save_dir, 1, 50, 0, a.data_file_path, 10)
-    # a.start_train(a.checkpoint_save_dir, 150, 50, 2, a.data_file_path, 10)
+    a.start_train(a.checkpoint_save_dir, 20, 50, 2, a.data_file_path, 10, True)
 
-    a.start_train(a.checkpoint_save_dir, 1, 500, 0, a.data_file_path, 10, False)
+    # a.start_train(a.checkpoint_save_dir, 1, 500, 0, a.data_file_path, 10, False)
 
