@@ -20,7 +20,8 @@ class facial_expression():
         self.landmark_X = tf.placeholder(tf.float32, [None, 144])
 
         self.keep_prob = tf.placeholder(tf.float32)
-        self.checkpoint_save_dir = os.path.join("/home/hci/PycharmProjects/hklovelovehs/hialove")
+        self.checkpoint_save_dir = os.path.join("/home/hci/PycharmProjects/hklovelovehs/train_with_trainingset_with_dropout_fakeimg_learning_rate2")
+
         self.data_file_path = os.path.join("data_set", "fer2013.csv")
 
         # self.loss, self.decoded = self.autoencoder(self.X)
@@ -31,7 +32,7 @@ class facial_expression():
         self.Y_one_hot = tf.one_hot(self.Y, 7)
 
         # 1st Layer
-        self.weight_1 = tf.Variable(tf.random_normal([3, 3, 1, 32], stddev=0.01))
+        self.weight_1 = tf.Variable(tf.random_normal([3, 3, 1, 32], stddev=0.02))
         self.bias_1 = tf.Variable(tf.random_normal([32], stddev=0.01))
 
         self.L1 = tf.nn.conv2d(self.X_img, self.weight_1, strides=[1, 1, 1, 1], padding='SAME')
@@ -48,10 +49,10 @@ class facial_expression():
         self.land_L1 = tf.nn.max_pool(self.land_L1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                       padding='SAME')
 
-        # self.L1 = tf.nn.dropout(self.L1, keep_prob=self.keep_prob)
+        self.L1 = tf.nn.dropout(self.L1, keep_prob=self.keep_prob)
 
         # 2nd Layer
-        self.weight_2 = tf.Variable(tf.random_normal([3, 3, 32, 64], stddev=0.01))
+        self.weight_2 = tf.Variable(tf.random_normal([3, 3, 32, 64], stddev=0.02))
         self.bias_2 = tf.Variable(tf.random_normal([64], stddev=0.01))
 
         self.L2 = tf.nn.conv2d(self.L1, self.weight_2, strides=[1, 1, 1, 1], padding='SAME')
@@ -68,13 +69,10 @@ class facial_expression():
         self.land_L2 = tf.nn.relu(self.land_L2)
         self.land_L2 = tf.nn.max_pool(self.land_L2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                       padding='SAME')  # now size becomes ? 12 12 64
-        # self.L2 = tf.nn.dropout(self.L2, keep_prob=self.keep_prob)
-
-
-
+        self.L2 = tf.nn.dropout(self.L2, keep_prob=self.keep_prob)
 
         # 3rd Layer
-        self.weight_3 = tf.Variable(tf.random_normal([3, 3, 64, 128], stddev=0.01))
+        self.weight_3 = tf.Variable(tf.random_normal([3, 3, 64, 128], stddev=0.02))
         self.bias_3 = tf.Variable(tf.random_normal([128], stddev=0.01))
 
         self.L3 = tf.nn.conv2d(self.L2, self.weight_3, strides=[1, 1, 1, 1], padding='SAME')
@@ -83,22 +81,17 @@ class facial_expression():
         self.L3 = tf.nn.max_pool(self.L3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                                  padding='SAME')  # now size becomes ? 6 6 128
 
-        # self.L3 = tf.nn.dropout(self.L3, keep_prob=self.keep_prob)
+        self.L3 = tf.nn.dropout(self.L3, keep_prob=self.keep_prob)
         self.L3_flatten = tf.reshape(self.L3, [-1, 6 * 6 * 128])
         self.landmark_flatten = tf.reshape(self.land_L2, [-1, 3 * 3 * 64])
         self.concat_flatten = tf.concat([self.L3_flatten, self.landmark_flatten], 1)
 
         # FC Layer
-        # self.weight_4 = tf.get_variable(name="w4", shape=[6 * 6 * 128, 7],
-        #                                 initializer=tf.contrib.layers.xavier_initializer())
-
         self.weight_4 = tf.get_variable(name="w4", shape=[(6 * 6 * 128) + (3 * 3 * 64), 7],
                                         initializer=tf.contrib.layers.xavier_initializer())
-        # self.landmark_weight = tf.get_variable(name="w4", shape=[3 * 3 * 64, 7], initializer=tf.contrib.layers.xavier_initializer())
         self.bias_4 = tf.Variable(tf.random_normal([7]))
 
         self.logits = tf.matmul(self.concat_flatten, self.weight_4) + self.bias_4  # size now become ?,7
-        # self.landmark_logidits = tf.matmul(self.landmark_flatten, self.landmark_weight) + self.bias_4
         self.softmax_logits = tf.nn.softmax(self.logits)
 
         self.cost = tf.nn.softmax_cross_entropy_with_logits(labels=self.Y_one_hot, logits=self.logits)
@@ -166,27 +159,41 @@ class facial_expression():
     #                                     padding='SAME') + b_cvt
     #     return tf.sigmoid(linout)
 
-    def get_dataset(self, file_path, batch_size, num_fake_img=0, shuffle=True):
+
+    def get_train_dataset(self, file_path, batch_size, num_fake_img=0, shuffle=True, train_or_test=True):
         with open(file_path) as csvfile:
             print("file opening")
-            csvfile = csvfile.readlines()[1:-31]
-            csvfile = np.array(csvfile)
+            training_set = []
+            test_set = []
 
+            csvfile = csvfile.readlines()[1:-31]
+
+            for x in csvfile:
+                purpose = x.split(",")
+                if purpose[2] == 'Training\n':
+                    training_set.append(x)
+                else:
+                    test_set.append(x)
+
+            traing_set = np.array(training_set)
+            test_set = np.array(test_set)
+
+
+            # csvfile = np.array(csvfile)
             if shuffle:
-                np.random.shuffle(csvfile)
+                np.random.shuffle(traing_set)
+                np.random.shuffle(test_set)
 
             # except int()
-            for i in range(int(round(len(csvfile) / batch_size, 0))):
+            for i in range(int(round(len(training_set if train_or_test else test_set) / batch_size, 0))):
                 labels = []
                 images = []
-                train_or_test = []
 
-                txt_list = csvfile[i * batch_size:i * batch_size + batch_size]
+                txt_list = traing_set[i * batch_size:i * batch_size + batch_size]
                 for txt_batch in txt_list:
                     txt_batch = txt_batch.split(",")
                     images.append([np.uint8(image_data) for image_data in txt_batch[1].split()])
                     labels.append(txt_batch[0])
-                    train_or_test.append([txt_batch[2]])
 
                     for j in range(num_fake_img):
                         choose_fake_img_type = random.randrange(0, 2)
@@ -199,11 +206,10 @@ class facial_expression():
                                 if noise > 0:
                                     image_data = image_data + ((255 - image_data) * noise)
                                 else:
-                                    image_data = image_data + ((image_data) * noise)
+                                    image_data = image_data + (image_data * noise)
                                 x_rows.append(np.uint8(image_data))
                             images.append(x_rows)
                             labels.append(txt_batch[0])
-                            train_or_test.append(txt_batch[2])
 
                         x_rows = []
                         noise_alpha = 0.1
@@ -217,17 +223,15 @@ class facial_expression():
 
                             images.append(x_rows)
                             labels.append(txt_batch[0])
-                            train_or_test.append(txt_batch[2])
 
                         for j in range(len(images)):
                             fake_img_shuffle = random.randrange(0, len(images))
                             images[j], images[fake_img_shuffle] = images[fake_img_shuffle], images[j]
                             labels[j], labels[fake_img_shuffle] = labels[fake_img_shuffle], labels[j]
-                            train_or_test[j], train_or_test[fake_img_shuffle] = train_or_test[fake_img_shuffle], \
-                                                                                train_or_test[j]
 
-                # yield images, labels, train_or_test
-                yield images, labels, train_or_test
+                yield images, labels
+
+
 
     def get_landmarks(self, image):
         detections = detector(image, 1)
@@ -263,7 +267,53 @@ class facial_expression():
         latest_chkpt = tf.train.latest_checkpoint(checkpoint_dir=checkpoint_save_dir)  # old to new
         saver.restore(sess, latest_chkpt)
 
-    def start_train(self, checkpoint_save_dir, epoch, batch_size, num_fake_img, file_path, eval_freq):
+
+
+    # def start_test(self, checkpoint_save_dir, epoch, batch_size, num_fake_img, file_path, eval_freq):
+    #     with tf.Session() as sess:
+    #         saver = tf.train.Saver(max_to_keep=1000)
+    #         saver.restore(sess, checkpoint_save_dir)
+    #         step = 0
+    #         delete_list = []
+    #         y = []
+    #         for i in range(epoch):
+    #             print("%s epoch" % i)
+    #             for image_data, label_data, train_or_test in self.get_test_dataset(file_path, batch_size,
+    #                                                                                 num_fake_img):
+    #                 for x in range(image_data.__len__()):
+    #                     # print(image_data[x])
+    #                     # test[x] = image_data[x]
+    #                     # y+=2304
+    #                     # print(test[x])
+    #                     pixels_array = np.asarray(image_data[x])
+    #                     image = pixels_array.reshape(48, 48)
+    #                     if self.get_landmarks(image) is False:
+    #                         delete_list.append(x)
+    #
+    #                 for y in reversed(delete_list):
+    #                     del (image_data[y])
+    #                     del (label_data[y])
+    #
+    #         k = []
+    #         saved = 0
+    #         for i in [0]:
+    #             #    sess.run(tf_train_step, feed_dict={tf_in: x_train, tf_softmax_correct: y_train_onehot})
+    #             # Print accuracy
+    #             cost, accuracy = sess.run([self.mean_cost, self.mean_accuracy], feed_dict={self.X: image_data, self.Y: label_data,
+    #                                                     self.landmark_X: self.landmark_data})
+    #             print "Run {}, {}, {}".format(i, cost, accuracy)
+    #             k.append(accuracy)
+    #
+    #             print "Correct prediction\n", accuracy
+    #
+    #         k = np.array(k)
+    #         print(np.where(k == k.max()))
+    #         print "Max: {}".format(k.max())
+
+
+
+
+    def start_train(self, checkpoint_save_dir, epoch, batch_size, num_fake_img, file_path, eval_freq, training = True):
         if not os.path.exists(checkpoint_save_dir):
             print("check point dir not found, making one")
             os.mkdir(checkpoint_save_dir)
@@ -283,8 +333,8 @@ class facial_expression():
             y = []
             for i in range(epoch):
                 print("%s epoch" % i)
-                for image_data, label_data, train_or_test in self.get_dataset(file_path, batch_size, num_fake_img):
-                    for x in range(batch_size):
+                for image_data, label_data in self.get_train_dataset(file_path, batch_size, num_fake_img, training):
+                    for x in range(image_data.__len__()):
                         # print(image_data[x])
                         # test[x] = image_data[x]
                         # y+=2304
@@ -301,23 +351,23 @@ class facial_expression():
                     step += 1
                     if (step % eval_freq == 0):
                         print("-------------------------------------------------------------------------------------")
-                        # cost, accuracy = sess.run([self.mean_cost, self.mean_accuracy],
-                        #                           feed_dict={self.X: image_data, self.Y: label_data, self.keep_prob: 1})
                         cost, accuracy = sess.run([self.mean_cost, self.mean_accuracy],
-                                                  feed_dict={self.X: image_data, self.Y: label_data,
-                                                             self.landmark_X: self.landmark_data})
+                                                  feed_dict={self.X: image_data, self.Y: label_data,self.landmark_X: self.landmark_data, self.keep_prob: 1})
+                        # cost, accuracy = sess.run([self.mean_cost, self.mean_accuracy],
+                        #                           feed_dict={self.X: image_data, self.Y: label_data,
+                        #                                      self.landmark_X: self.landmark_data})
                         print("COST: ", cost)
                         print("Accuracy: ", accuracy)
                         saver.save(sess, os.path.join(checkpoint_save_dir, "facial expression"))
                         print("progress saved at %s " % checkpoint_save_dir + "%s epoch %s step" % (i, step))
                         print("-------------------------------------------------------------------------------------")
-                        print(self.landmark_data)
+                        # print(self.landmark_data)
                         self.landmark_data = []
                         delete_list = []
                     else:
-                        # sess.run(self.train, feed_dict={self.X: image_data, self.Y: label_data, self.keep_prob: 0.7})
-                        sess.run(self.train, feed_dict={self.X: image_data, self.Y: label_data,
-                                                        self.landmark_X: self.landmark_data})
+                        sess.run(self.train, feed_dict={self.X: image_data, self.Y: label_data,self.landmark_X: self.landmark_data, self.keep_prob: 0.7})
+                        # sess.run(self.train, feed_dict={self.X: image_data, self.Y: label_data,
+                        #                                 self.landmark_X: self.landmark_data})
                         self.landmark_data = []
                         delete_list = []
 
@@ -328,4 +378,8 @@ if __name__ == '__main__':
     # print(labels)
     # print(train)
     a = facial_expression()
-    a.start_train(a.checkpoint_save_dir, 20, 50, 0, a.data_file_path, 10)
+    # a.start_test(a.checkpoint_save_dir, 1, 50, 0, a.data_file_path, 10)
+    # a.start_train(a.checkpoint_save_dir, 150, 50, 2, a.data_file_path, 10)
+
+    a.start_train(a.checkpoint_save_dir, 1, 500, 0, a.data_file_path, 10, False)
+
